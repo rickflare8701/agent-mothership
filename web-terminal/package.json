@@ -1,0 +1,15 @@
+{
+  "name": "mothership-web-terminal",
+  "version": "1.0.0",
+  "description": "Web-based terminal for Agent Mothership",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0",
+    "node-pty": "^1.0.0"
+  },
+  "keywords": ["terminal", "xterm", "codebuff"],
+  "license": "MIT"
+}

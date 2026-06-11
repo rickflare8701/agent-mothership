@@ -1,14 +1,22 @@
 {
-  "name": "nodejs-sandbox",
+  "name": "agent-mothership",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "🏠 AI Agent Mothership - Run codebuff 24/7 from anywhere",
+  "private": true,
   "scripts": {
-    "start": "node --watch index.js"
+    "start": "node web-terminal/server.js",
+    "web-terminal": "node web-terminal/server.js",
+    "sync": "node session-persistence/sync.js"
   },
-  "keywords": [],
-  "author": "Ives van Hoorne",
-  "license": "MIT",
-  "devDependencies": {},
-  "dependencies": {}
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0",
+    "pty.js": "^0.3.1",
+    "node-pty": "^1.0.0",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0",
+    "xterm-addon-web-links": "^0.9.0"
+  },
+  "keywords": ["codebuff", "ai-agent", "cloudflare-tunnel", "terminal"],
+  "license": "MIT"
 }

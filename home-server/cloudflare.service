@@ -1,0 +1,14 @@
+[Unit]
+Description=Cloudflare Tunnel for Agent Mothership
+After=network.target
+
+[Service]
+Type=simple
+User=CHANGE_THIS_TO_YOUR_USERNAME
+ExecStart=/usr/local/bin/cloudflared tunnel --url http://localhost:3000
+Restart=on-failure
+RestartSec=5
+Environment=HOME=/home/CHANGE_THIS_TO_YOUR_USERNAME
+
+[Install]
+WantedBy=multi-user.target
