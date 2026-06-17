@@ -3,10 +3,12 @@ node_modules/
 .env
 .env.memory
 .env.local
-node_modules/
-*.log
 .session/
 tmp/
 dist/
 .DS_Store
 *.pid
+.aider*
+.tunnel-url
+package-lock.json
+chisel

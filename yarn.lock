@@ -310,10 +310,10 @@ forwarded@0.2.0:
   resolved "https://registry.npmjs.org/forwarded/-/forwarded-0.2.0.tgz"
   integrity sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==
 
-freebuff@^0.0.106:
-  version "0.0.106"
-  resolved "https://registry.npmjs.org/freebuff/-/freebuff-0.0.106.tgz"
-  integrity sha512-3pRGhTprkl3G9InzUp7WDAhPEhshJ4/UVdUYo2S20sZtyv3F/U1CstGCDpKmXgvl8Er8W8xiMGz1d0m2rCIOKw==
+freebuff@^0.0.109:
+  version "0.0.109"
+  resolved "https://registry.npmjs.org/freebuff/-/freebuff-0.0.109.tgz"
+  integrity sha512-rHnkZ4V3lE78pjDcGpMUCALHg5KK0e3TMcS3GvB7icWgRFc2dT+OZtsDY20TLMRBBUgYZQ4jarRhzxzKOXURZg==
   dependencies:
     tar "^7.0.0"
 
