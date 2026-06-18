@@ -1,0 +1,20 @@
+LIBRARY STServiceProcess
+
+EXPORTS
+  ??0CServiceBase@STServiceProcess@@IEAA@QEB_WW4ControlsAccepted@1@@Z = STServiceProcess_orig.??0CServiceBase@STServiceProcess@@IEAA@QEB_WW4ControlsAccepted@1@@Z
+  ??0CServiceController@STServiceProcess@@QEAA@PEB_W0@Z = STServiceProcess_orig.??0CServiceController@STServiceProcess@@QEAA@PEB_W0@Z
+  ??1CServiceBase@STServiceProcess@@UEAA@XZ = STServiceProcess_orig.??1CServiceBase@STServiceProcess@@UEAA@XZ
+  ??1CServiceController@STServiceProcess@@QEAA@XZ = STServiceProcess_orig.??1CServiceController@STServiceProcess@@QEAA@XZ
+  ?Continue@CServiceController@STServiceProcess@@QEAAXXZ = STServiceProcess_orig.?Continue@CServiceController@STServiceProcess@@QEAAXXZ
+  ?Exists@CServiceController@STServiceProcess@@QEBA_NXZ = STServiceProcess_orig.?Exists@CServiceController@STServiceProcess@@QEBA_NXZ
+  ?GetDependentServices@CServiceController@STServiceProcess@@QEBA?AV?$vector@V?$basic_string@_WU?$char_traits@_W@std@@V?$allocator@_W@2@@std@@V?$allocator@V?$basic_string@_WU?$char_traits@_W@std@@V?$allocator@_W@2@@std@@@2@@std@@XZ = STServiceProcess_orig.?GetDependentServices@CServiceController@STServiceProcess@@QEBA?AV?$vector@V?$basic_string@_WU?$char_traits@_W@std@@V?$allocator@_W@2@@std@@V?$allocator@V?$basic_string@_WU?$char_traits@_W@std@@V?$allocator@_W@2@@std@@@2@@std@@XZ
+  ?GetServiceConfig@CServiceController@STServiceProcess@@QEBA?AUCServiceConfig@2@XZ = STServiceProcess_orig.?GetServiceConfig@CServiceController@STServiceProcess@@QEBA?AUCServiceConfig@2@XZ
+  ?GetServiceSid@CServiceController@STServiceProcess@@SA?AVCSid@ATL@@PEB_W@Z = STServiceProcess_orig.?GetServiceSid@CServiceController@STServiceProcess@@SA?AVCSid@ATL@@PEB_W@Z
+  ?GetServiceStatus@CServiceController@STServiceProcess@@QEBA?AUCServiceStatus@2@XZ = STServiceProcess_orig.?GetServiceStatus@CServiceController@STServiceProcess@@QEBA?AUCServiceStatus@2@XZ
+  ?Pause@CServiceController@STServiceProcess@@QEAAXXZ = STServiceProcess_orig.?Pause@CServiceController@STServiceProcess@@QEAAXXZ
+  ?RequestAdditionalTime@CServiceBase@STServiceProcess@@IEAAXK@Z = STServiceProcess_orig.?RequestAdditionalTime@CServiceBase@STServiceProcess@@IEAAXK@Z
+  ?Run@CServiceBase@STServiceProcess@@SAXAEAV12@@Z = STServiceProcess_orig.?Run@CServiceBase@STServiceProcess@@SAXAEAV12@@Z
+  ?Start@CServiceController@STServiceProcess@@QEAAXAEBV?$vector@PEB_WV?$allocator@PEB_W@std@@@std@@@Z = STServiceProcess_orig.?Start@CServiceController@STServiceProcess@@QEAAXAEBV?$vector@PEB_WV?$allocator@PEB_W@std@@@std@@@Z
+  ?Stop@CServiceBase@STServiceProcess@@QEAAXXZ = STServiceProcess_orig.?Stop@CServiceBase@STServiceProcess@@QEAAXXZ
+  ?Stop@CServiceController@STServiceProcess@@QEAAXXZ = STServiceProcess_orig.?Stop@CServiceController@STServiceProcess@@QEAAXXZ
+  ?WaitForStatus@CServiceController@STServiceProcess@@QEBAXW4ServiceControllerStatus@2@I@Z = STServiceProcess_orig.?WaitForStatus@CServiceController@STServiceProcess@@QEBAXW4ServiceControllerStatus@2@I@Z

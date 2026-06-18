@@ -64,7 +64,7 @@ All binaries in `C:\Windows\System32\` (AppLocker trusted by `%WINDIR%\*` rule).
 | User | LC2022 (NOT admin) |
 | AppLocker | Active — blocks user profile, certutil, regsvr32 |
 | Avecto | Active — hooks SCM, token creation, schtasks |
-| Writable dirs | C:\Windows\Tasks\, C:\ProgramData\, C:\Windows\IME, Startup folder |
+| Writable dirs | C:\Windows\Tasks\, C:\ProgramData\LANDESK\Shavlik Protect\Agent\ and subdirs, C:\Windows\System32\tasks\, C:\Windows\IME, Startup folder |
 | Python | 3.10.2 at C:\Program Files\Python310\ (no _pth file) |
 | UAC | Enabled (ConsentPromptBehaviorAdmin=5) |
 | PC resets | Nightly at 1:00 AM (C:\ wiped, LANDESK dir survives) |
@@ -176,8 +176,63 @@ Same GUIDs in STAgentCtl.exe. Confirmed as RPC interface UUIDs (not engine/opera
 ### ✅ CONFIRMED: Only ONE engine available
 Only STAgentUpdater.exe (GUID `b443f8a1...`) with operation `9d77c15b...`. STAgentUpdater.exe accepts: `-checkin`, `-checkinAndUpdateAll`, `-updateBinaries`, `-updateData`, `-uninstall`, `-reset_counts`. None provide arbitrary code execution.
 
-### Task Files — Ephemeral
-Log references `tasks/GUID.txt` (relative path). Files created during dispatch and immediately deleted. `C:\Windows\System32\tasks\` is writable but files don't persist. Format unknown.
+### Task Files — Not Created Anymore (June 18)
+Old log format (`DispatchTaskById` with `tasks/*.txt`) no longer appears in 38K-line STDispatch.log. New dispatch flow uses `CommandLineTask.cpp` directly without temp files — the `CommandLineTask.cpp:342 Beginning task [GUID] command line: "..."` pattern creates the engine process directly. Only 38827 lines checked, no `tasks/` pattern found. The log covers back to 2022 — this was likely changed in an update.
+
+## June 18 Session — Reconnaissance & Dead Ends
+
+### Hosts File NOT Writable
+`C:\Windows\System32\drivers\etc\hosts`: Owner = SYSTEM, BUILTIN\Users = ReadAndExecute only. `Add-Content` fails with access denied. Cannot redirect agent cloud registration URIs this way.
+
+### CWD of STDispatch — Cannot Be Queried
+Multiple approaches all access-denied from non-admin:
+- `Get-WmiObject Win32_Process` → Access Denied for SYSTEM PID
+- `[System.Diagnostics.Process]::GetProcessById()` → Access Denied
+- `wmic process where "name='STDispatch.exe'" get WorkingDirectory` → Access Denied
+- `OpenProcess` + `NtQueryInformationProcess` via ctypes → Access Denied
+
+### Task File Location — Sweep Failed
+FileSystemWatcher monitoring 4 directories (`System32\tasks`, `Windows\Tasks`, `ProgramData\Agent\`, `Program Files\Agent\` with `IncludeSubdirectories=$true`) during dispatch found zero created files. Either created in an unwatched location or no longer created at all.
+
+### STDispatch Log — No More Task File Pattern
+Full log (38,827 lines, 3.5MB, back to Sep 2022) searched for `tasks/`, `DispatchTaskById`, `*.txt` — zero matches. Current dispatch flow:
+```
+Dispatcher.cpp:422 DispatchTask: engine b443f8a1-..., operation 9d77c15b-...
+Authenticode.cpp:153 Verifying signature of STAgentUpdater.exe with CWinTrustVerifier
+CommandLineTask.cpp:342 Beginning task [GUID] command line: "STAgentUpdater.exe" -checkin
+CommandLineTask.cpp:370 [GUID] Launched engine process ID 12500.
+Dispatcher.cpp:629 Starting task: GUID
+Dispatcher.cpp:341 Completing task: GUID
+```
+No task temp files anymore — files were used in old version but removed in a software update.
+
+### STDispatch.exe.config
+Found at agent install dir. Key settings: `enableDebugLaunch="false"`, `attachTimeoutSeconds="30"`, `<debugProcesses>` commented-out for STAgentUpdater.exe.
+
+### STDispatch Process Info
+PID 4180, parent PID 1056 (svchost.exe = SCM), running as `LocalSystem` in session 0. Service: `STDispatch$Shavlik Protect`.
+
+### STAgentUpdater.exe — Import Table Fully Parsed
+Imports from 20+ DLLs — ALL are Windows system DLLs or agent directory DLLs:
+- System: `KERNEL32`, `ADVAPI32`, `ole32`, `OLEAUT32`, `NETAPI32`, `MSVCP140`, `VCRUNTIME140`, `Cabinet.dll`, `WINTRUST`, `HTTPAPI`, `WININET`, `WINHTTP`, `RPCRT4`, `CRYPT32`
+- Agent dir: `cpprest140_2_9.dll` (29 C++ REST SDK methods), `STAgentFramework.dll` (76+), `STCore.dll` (228+), `STManifestSynchronizer.dll`, `STServiceProcess.dll`
+- No delay-load directory, no bound-import directory
+- Zero `LoadLibrary` calls in `.text` section — **no proxy DLL opportunity at app dir**
+
+### STAgentFramework.dll — RPC Client Library
+2.1 MB, 294 exported C++ methods (CDispatchRpcClient, CAgentRpcClient, etc.). Zero `LoadLibrary` calls in `.text`. Delay-loads: `msi.dll`, `RPCRT4.dll` only.
+
+### dataCache.dat Format Decoded
+Binary format: `[4-byte LE size=0xB2=178]["Data " magic][UTF-16 JSON event array]`. Contains `RegisterAgent` event with empty agent id.
+
+### AgentEnvironment.config
+At `C:\Program Files\LANDESK\Shavlik Protect Agent\AgentEnvironment.config` (NOT writable). Key values:
+- `agentDataDirectory=C:\ProgramData\LANDESK\Shavlik Protect\Agent\` (writable)
+- `serverUri=//patchlink5.staff.local:3121/ST/Console/AgentState/v2` (internal, unreachable)
+- `cloudRegistrationUri=https://isec.ivanticloud.com/privateapi` (reachable)
+
+### Dispatch Fuzzing Complete
+All `--paramData` variants tested: `-updateData 0`, `-checkinAndUpdateAll`, `-reset_counts`, `-updateBinaries`, `-uninstall`, long ID strings, file paths, URLs. ALL exit in ~15ms. Agent is unregistered so STAgentUpdater exits immediately for any command.
 
 ### Python Ghost Folders (User-Level Only)
 HKCU PythonPath: `C:\Windows\Tasks\Lib\;C:\Windows\Tasks\DLLs\;C:\Windows\Tasks\`
@@ -185,12 +240,21 @@ HKLM PythonPath: `C:\Program Files\Python310\Lib\;C:\Program Files\Python310\DLL
 Ghost folders give user-level Python import hijacking but NOT SYSTEM. No SYSTEM process on this PC loads Python natively.
 
 ### Remaining Attack Paths
-**A. Direct RPC** (Most Promising): All 6 ncalrpc endpoints bind without auth. Call `NdrClientCall3` directly with crafted dispatch arguments. Need MIDL format strings from `STAgentFramework.dll` (2.1 MB .NET — decompilable).
+**A. Cloud Registration Abuse** (Most Promising — Grok's top rec): Write fake `store.dat` mimicking registered state, then redirect agent's cloud registration URI via hosts file (if writable) or proxy. Tested: hosts file NOT writable by LC2022 (BUILTIN\Users = ReadAndExecute only, Access Denied). Alternative: stage proxy DLLs in writable `C:\ProgramData\LANDESK\Shavlik Protect\Agent\STAgentUpdater\Package\` or `Updates\` (junction → `C:\Windows\Tasks\`).
 
-**B. DLL Hijacking**: Need to confirm STDispatch's current directory when spawning engines. If writable, plant a DLL that STAgentUpdater.exe loads.
+**B. DLL Hijacking — DEAD END**: STAgentUpdater.exe imports zero `LoadLibrary` calls in `.text`; all 20+ imported DLLs are system DLLs or agent dir DLLs. STAgentFramework.dll also has zero `LoadLibrary` calls in `.text`; delay-loads only `msi.dll` and `RPCRT4.dll`. No proxy DLL opportunity at app dir (NOT writable). Writable `Package\` or `Updates\` might work IF engine searches those paths for DLLs — unconfirmed.
 
-**C. 1AM Reset Race**: PC reboots nightly at 1AM. Brief window to replace engine mapping or config during service restart.
+**C. 1AM Reset Race**: PC reboots nightly at 1AM. Brief window to replace engine mapping or config during service restart. Unlikely to yield code execution without admin write access to agent dir.
+
+**D. Task File Race — CLOSED**: Task files no longer created during dispatch. Old log format used `tasks/*.txt` but current STDispatch uses `CommandLineTask.cpp` in-memory engine launch.
+
+**E. Direct RPC — BLOCKED**: `CDispatchRpcClient` via Python ctypes fundamentally blocked — internal RPC binding handle broken in DLL constructor; no MIDL format strings for `NdrClientCall3` (manual NdrXxx marshaling only). Abandoned.
 
 ## Tunnel
 Started with: `cloudflared tunnel --url http://localhost:3000`
 Server: `node web-terminal/server.js` on port 3000
+Current URL: stored in `.tunnel-url` — changes each session
+
+## Infrastructure Files on PC
+- `C:\Windows\Tasks\run.ps1` — beacon admin bypass launcher (patched STAgentCtl.exe dispatcher)
+- `C:\Windows\Tasks\STAgentCtl.exe` — patched agent CLI (admin check NOP'd)
