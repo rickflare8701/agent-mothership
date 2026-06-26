@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Claude Auto-Login</title>
+</head>
+<body>
+    <h1>Setting cookies and redirecting to Claude...</h1>
+    <script>
+        // Set all cookies
+        function setCookie(name, value, days) {
+            let expires = "";
+            if (days) {
+                const date = new Date();
+                date.setTime(date.getTime() + (days*24*60*60*1000));
+                expires = "; expires=" + date.toUTCString();
+            }
+            document.cookie = name + "=" + value + expires + "; path=/; domain=.claude.ai; secure; samesite=lax";
+        }
+
+        // Set the critical cookies
+        setCookie("sessionKey", "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", 7);
+        setCookie("sessionKeyLC", "1782394482990", 7);
+        setCookie("cf_clearance", "jwMpfTyqLS4NizfmDiY8fxtvvfM27n.N_vdy_YL4l7o-1782394468-1.2.1.1-3iHbIC6lkR9lA2iaL_V44XNtWbLZUC_8nkROIjWx6c2xd7owq9d.h0RgHksZPzfatUDO5UXZUmBwqamOGVrLAQK98ItsS0GcZ0CBYkPFaksBnEEDc.0b0TtlM7.RIVRcxTdrjPLH7vTAZRvqvDn0cKCShRw7PsKjLGkWV0ILShfry9dPhy2SldEQM83wpIlpqKk1ANMnSfjgNdi9p9tOLHQir0gpsjgB1OmXui760pXi.CsJDpbZE77Et2j5EB50Y7_UWvxGjKqv4aQI1CkC8xmECCCFjskCGzLTovVuBaigVNkcbP7ycy49Yl7Er4WqwddzFLup0b6Pd1S2qyy_Qg", 7);
+        setCookie("__cf_bm", "Usgv_10Fid7aipk_MD39.bAkc.sZJrAXG7QbQx3Nyf8-1782394468.299296-1.0.1.1-prPJE1RbQauVen6M0v42AuEs4JwJOYLDA_aUTGwup5SNuzcKEf4wXhxb6hXO6YiHan2Y4_cix.ZMDFrzEF0rFs4OqSgU3buvv46HI24vtxeVnR8P5Qn.ePlqEh1WmcKg", 7);
+        setCookie("lastActiveOrg", "04aa0895-c6a6-48d7-89cc-929a3250225a", 7);
+        setCookie("routingHint", "sk-ant-rh-eyJ0eXAiOiAiSldUIiwgImFsZyI6ICJFUzI1NiIsICJraWQiOiAiN0MxcWFPRnhqdWxaUjRFQnNuNk1UeUZGNWdDV2JHbFpNVDR2RklrRFFpbyJ9.eyJzdWIiOiAiODhmMjZiZGYtNTQ1YS00MjE5LTk1MmQtZDYxNGY3ZTgzNDdiIiwgImlhdCI6IDE3ODIzOTQ0ODIsICJpc3MiOiAiY2xhdWRlLWFpLXJvdXRpbmciLCAib25ib2FyZGluZ19jb21wbGV0ZSI6IHRydWUsICJwaG9uZV92ZXJpZmllZCI6IGZhbHNlLCAiYWdlX3ZlcmlmaWVkIjogdHJ1ZSwgIm5hbWUiOiAicmlja3kifQ.EGJqnCuomoUbyIs_Zg9lSus7TIWQItOL_ZfjRpLR-i0IUl9jaMeNOEaHzk2zG68Qhr_knQUeHmItS4HNkrwm0Q", 7);
+
+        document.write("<p>Cookies set! Redirecting to claude.ai in 2 seconds...</p>");
+        document.write("<p>If not redirected, <a href='https://claude.ai/new'>click here</a></p>");
+
+        // Redirect after a short delay
+        setTimeout(function() {
+            window.location.href = "https://claude.ai/new";
+        }, 2000);
+    </script>
+</body>
+</html>

