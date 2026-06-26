@@ -5,7 +5,7 @@ node_modules/
 .env.local
 .session/
 tmp/
-dist/
+/dist/
 .DS_Store
 *.pid
 .aider*

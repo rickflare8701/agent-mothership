@@ -206,6 +206,34 @@ The express server + public assets served to target PCs during operations.
 |------|---------|
 | `wietze_dll_hijack_candidates.csv` | Wietze's DLL hijack candidate database (78KB) |
 
+## `infrastructure/plugins/` — OpenCode Plugins
+
+| Plugin | Source | Location |
+|--------|--------|----------|
+| **Superpowers** | `obra/superpowers` | Plugin via `git+https://github.com/obra/superpowers.git` |
+| **Headroom** | `headroomlabs-ai/headroom` | Local copy at `infrastructure/plugins/headroom-opencode/` |
+
+### Superpowers (obra/superpowers)
+
+A skill-based development methodology. Auto-loads 16 skills at session start:
+`brainstorming`, `writing-plans`, `subagent-driven-development`, `test-driven-development`, `systematic-debugging`, `verification-before-completion`, `finishing-a-development-branch`, etc.
+
+Skills auto-trigger based on task type. Use the `skill` tool to invoke.
+
+### Headroom (headroomlabs-ai/headroom)
+
+Context compression layer — claims 60-95% token reduction. Two parts:
+
+1. **Headroom proxy** — local server that compresses context before sending to the LLM
+2. **headroom-opencode plugin** — intercepts opencode provider traffic in-process + exposes `headroom_retrieve` tool
+
+**Session startup (run before first task):**
+```bash
+pip install "headroom-ai[proxy]" --break-system-packages 2>/dev/null
+headroom proxy --port 8787 &
+export HEADROOM_PROXY_URL=http://127.0.0.1:8787
+```
+
 ## `config/` — Configuration
 
 | Path | Purpose |
