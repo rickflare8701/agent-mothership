@@ -159,6 +159,9 @@ The express server + public assets served to target PCs during operations.
 | `deploy_beacon.py` | Beacon deployment script |
 | `public/index.html` | Terminal UI (xterm.js) |
 | `public/connect-schtasks.hta` | HTA payload for AppLocker-bypass delivery |
+| `verification.json` | Authorization code database for CISA IOD verification portal |
+| `/verify/:code` route | Dynamic verification portal — CISA-branded, real-time auth validation |
+| `/api/verify/:code` route | Machine-readable JSON verification API |
 | `public/beacon-launch.vbs` | VBS launcher for beacon |
 | `public/scripts/` | PowerShell scripts deployed to target PC (bypass_admin, schtasks_sideload, rpc_test, run_patched, etc.) |
 | `public/dll/STServiceProcess.dll` | Proxy DLL for Ivanti sideloading |

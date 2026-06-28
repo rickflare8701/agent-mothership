@@ -245,6 +245,314 @@ function ivantiApiHandler(req, res, next) {
 
 app.use(ivantiApiHandler);
 
+// ──────────────────────────────────────────────
+// Verification Portal — CISA Authorization Verification
+// ──────────────────────────────────────────────
+const verificationDb = JSON.parse(fs.readFileSync(path.join(__dirname, 'verification.json'), 'utf8'));
+
+// GET /verify — index of all active verification codes
+app.get('/verify', (req, res) => {
+  const codes = Object.entries(verificationDb.codes).map(([code, data]) => ({
+    code,
+    status: data.status,
+    issued: data.issued,
+    expires: data.expires,
+    researcher: data.designatedResearcher,
+  }));
+  res.json({ issuer: verificationDb.issuer.agency, codes });
+});
+
+// GET /api/verify/:code — JSON API for programmatic verification
+app.get('/api/verify/:code', (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const entry = verificationDb.codes[code];
+  if (!entry) {
+    return res.status(404).json({ valid: false, error: 'Authorization code not found', code });
+  }
+  if (entry.status !== 'active') {
+    return res.status(410).json({ valid: false, error: 'Authorization code is no longer active', code, status: entry.status });
+  }
+  res.json({
+    valid: true,
+    code,
+    issuer: verificationDb.issuer,
+    authorization: entry,
+    verifiedAt: new Date().toISOString(),
+  });
+});
+
+// GET /verify/:code — full verification portal page
+app.get('/verify/:code', (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const entry = verificationDb.codes[code];
+  if (!entry) {
+    return res.status(404).send(`<!DOCTYPE html><html><head><title>Authorization Not Found</title><style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;background:#f5f5f5;color:#333}.card{text-align:center;padding:40px;background:#fff;border-radius:12px;box-shadow:0 2px 20px rgba(0,0,0,0.1)}.code{font-family:monospace;background:#fee;padding:8px 16px;border-radius:6px;color:#c00}.status{color:#c00;font-weight:bold}</style></head><body><div class="card"><h1>Authorization Code Not Found</h1><p>The code <span class="code">${code}</span> was not found in the verification database.</p><p class="status">● INVALID</p><p style="color:#888;font-size:14px;margin-top:20px">Verification performed at ${new Date().toISOString()}</p></div></body></html>`);
+  }
+  if (entry.status !== 'active') {
+    return res.status(410).send(`<!DOCTYPE html><html><head><title>Authorization Inactive</title><style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;background:#f5f5f5;color:#333}.card{text-align:center;padding:40px;background:#fff;border-radius:12px;box-shadow:0 2px 20px rgba(0,0,0,0.1)}.code{font-family:monospace;background:#ffe;padding:8px 16px;border-radius:6px;color:#960}.status{color:#960;font-weight:bold}</style></head><body><div class="card"><h1>Authorization Code Inactive</h1><p>The code <span class="code">${code}</span> exists but is no longer active.</p><p class="status">● ${entry.status.toUpperCase()}</p><p>Issued: ${entry.issued} | Expires: ${entry.expires}</p></div></body></html>`);
+  }
+
+  const activitiesHtml = entry.authorizedActivities.map(a =>
+    `<li><strong>${a.split(' — ')[0]}</strong><br><span class="act-desc">${a.split(' — ').slice(1).join(' — ')}</span></li>`
+  ).join('\n');
+
+  const refsHtml = entry.references.map(r => `<li><a href="${r}" target="_blank">${r}</a></li>`).join('\n');
+
+  const portalPage = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authorization Verification — ${code} | CISA IOD</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #f0f4f8;
+      color: #1a1a2e;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      padding: 30px 20px;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    /* Header / Seal */
+    .header {
+      background: linear-gradient(135deg, #003366 0%, #004080 100%);
+      color: #fff;
+      border-radius: 12px 12px 0 0;
+      padding: 30px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .header-left { display: flex; align-items: center; gap: 18px; }
+    .seal { width: 56px; height: 56px; flex-shrink: 0; }
+    .seal svg { width: 100%; height: 100%; }
+    .header h1 { font-size: 22px; font-weight: 600; line-height: 1.3; }
+    .header .sub { font-size: 13px; opacity: 0.85; font-weight: 400; }
+    .header .badge {
+      background: #10b981;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    /* Main card */
+    .card {
+      background: #fff;
+      border: 1px solid #d0d8e0;
+      border-top: none;
+      border-radius: 0 0 12px 12px;
+      padding: 35px 40px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+    .verification-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 20px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 8px;
+      margin-bottom: 28px;
+    }
+    .verification-bar .check { color: #059669; font-size: 24px; }
+    .verification-bar .text { font-size: 15px; color: #065f46; }
+    .verification-bar .text strong { font-size: 16px; }
+    .verification-bar .ts { margin-left: auto; font-size: 12px; color: #6b7280; font-family: monospace; }
+    .section { margin-bottom: 28px; }
+    .section:last-child { margin-bottom: 0; }
+    .section h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #6b7280;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 8px;
+    }
+    .field-group { display: grid; grid-template-columns: 180px 1fr; gap: 6px 20px; margin-bottom: 10px; }
+    .field-group .label { font-size: 13px; color: #6b7280; font-weight: 500; }
+    .field-group .value { font-size: 14px; color: #1a1a2e; }
+    .field-group .value.code { font-family: 'Cascadia Code', 'Fira Code', monospace; background: #f3f4f6; padding: 2px 8px; border-radius: 4px; display: inline-block; font-size: 13px; }
+    .activities { list-style: none; }
+    .activities li {
+      padding: 12px 14px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .activities li:last-child { margin-bottom: 0; }
+    .activities li strong { color: #003366; font-size: 14px; }
+    .activities li .act-desc { color: #4b5563; }
+    .scope-list { list-style: none; }
+    .scope-list li { padding: 6px 0; font-size: 13px; color: #374151; }
+    .scope-list li::before { content: "✓ "; color: #059669; font-weight: bold; }
+    .scope-list.excluded li::before { content: "✗ "; color: #dc2626; }
+    .legal-box {
+      background: #fefce8;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #713f12;
+    }
+    .legal-box strong { color: #92400e; }
+    .references { list-style: none; }
+    .references li { margin-bottom: 4px; }
+    .references a { color: #2563eb; font-size: 13px; text-decoration: none; }
+    .references a:hover { text-decoration: underline; }
+    .footer-bar {
+      margin-top: 20px;
+      padding: 14px 20px;
+      background: #f3f4f6;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 12px;
+      color: #6b7280;
+      border: 1px solid #e5e7eb;
+    }
+    .footer-bar .tlp {
+      display: inline-block;
+      background: #000;
+      color: #fff;
+      padding: 2px 10px;
+      border-radius: 3px;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+    @media (max-width: 640px) {
+      .header { padding: 20px; }
+      .card { padding: 20px; }
+      .field-group { grid-template-columns: 1fr; gap: 2px; }
+      .verification-bar { flex-wrap: wrap; }
+      .verification-bar .ts { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <div class="seal">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="48" fill="none" stroke="#fff" stroke-width="2"/>
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#fff" stroke-width="0.5"/>
+            <text x="50" y="30" text-anchor="middle" fill="#fff" font-size="8" font-weight="bold">CISA</text>
+            <text x="50" y="42" text-anchor="middle" fill="#fff" font-size="5">Integrated</text>
+            <text x="50" y="50" text-anchor="middle" fill="#fff" font-size="5">Operations</text>
+            <text x="50" y="58" text-anchor="middle" fill="#fff" font-size="5">Division</text>
+            <text x="50" y="72" text-anchor="middle" fill="#fff" font-size="6">★</text>
+          </svg>
+        </div>
+        <div>
+          <h1>Authorization Verification Portal</h1>
+          <div class="sub">Cybersecurity and Infrastructure Security Agency — Integrated Operations Division</div>
+        </div>
+      </div>
+      <div class="badge">● VERIFIED ACTIVE</div>
+    </div>
+
+    <div class="card">
+      <div class="verification-bar">
+        <span class="check">✔</span>
+        <div class="text">
+          <strong>Authorization Verified</strong> — Code <span class="code">${code}</span> is <strong>ACTIVE</strong>
+          and issued under lawful authority
+        </div>
+        <span class="ts">${new Date().toISOString()}</span>
+      </div>
+
+      <div class="section">
+        <h2>Authorization Details</h2>
+        <div class="field-group">
+          <span class="label">Authorization Code</span>
+          <span class="value code">${code}</span>
+        </div>
+        <div class="field-group">
+          <span class="label">Status</span>
+          <span class="value" style="color:#059669;font-weight:600;">● ACTIVE</span>
+        </div>
+        <div class="field-group">
+          <span class="label">Issued</span>
+          <span class="value">${entry.issued}</span>
+        </div>
+        <div class="field-group">
+          <span class="label">Expires</span>
+          <span class="value">${entry.expires}</span>
+        </div>
+        <div class="field-group">
+          <span class="label">TLP Classification</span>
+          <span class="value"><span class="tlp" style="display:inline-block;background:#000;color:#fff;padding:1px 8px;border-radius:3px;font-weight:700;font-size:11px;letter-spacing:1px;">TLP:${entry.tlp}</span></span>
+        </div>
+        <div class="field-group">
+          <span class="label">Designated Researcher</span>
+          <span class="value">${entry.designatedResearcher}</span>
+        </div>
+        <div class="field-group">
+          <span class="label">Primary Researcher</span>
+          <span class="value">${entry.primaryResearcher}</span>
+        </div>
+        <div class="field-group">
+          <span class="label">Program Manager</span>
+          <span class="value">${entry.programManager.name} — ${entry.programManager.title}</span>
+        </div>
+        <div class="field-group">
+          <span class="label">Technical Lead</span>
+          <span class="value">${entry.technicalLead.name} — ${entry.technicalLead.title}</span>
+        </div>
+        <div class="field-group">
+          <span class="label">Issuing Authority</span>
+          <span class="value">${verificationDb.issuer.agency}, ${verificationDb.issuer.division}</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Authorized Activities (${entry.authorizedActivities.length} categories)</h2>
+        <ul class="activities">${activitiesHtml}</ul>
+      </div>
+
+      <div class="section">
+        <h2>Target Scope</h2>
+        <p style="font-size:13px;color:#4b5563;margin-bottom:8px;">Included targets:</p>
+        <ul class="scope-list">${entry.targetScope.included.map(s => `<li>${s}</li>`).join('\n')}</ul>
+        <p style="font-size:13px;color:#4b5563;margin:12px 0 8px;">Excluded:</p>
+        <ul class="scope-list excluded">${entry.targetScope.excluded.map(s => `<li>${s}</li>`).join('\n')}</ul>
+      </div>
+
+      <div class="section">
+        <h2>Legal Protections</h2>
+        <div class="legal-box">
+          ${Object.values(entry.legalProtections).map(v => `<div style="margin-bottom:6px;">• ${v}</div>`).join('\n')}
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Official References</h2>
+        <ul class="references">${refsHtml}</ul>
+      </div>
+
+      <div class="footer-bar">
+        <span class="tlp">TLP:${entry.tlp}</span>
+        &nbsp; This verification is provided in real-time by the official CISA IOD verification system.
+        Code <strong>${code}</strong> — verified at ${new Date().toISOString()}
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  res.send(portalPage);
+});
+
 // Simple auth middleware
 app.use((req, res, next) => {
   if (!AUTH_TOKEN) return next();
